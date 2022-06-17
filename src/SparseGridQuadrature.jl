@@ -94,7 +94,7 @@ function SGQuadrature{D,S}(lmax::Int) where {D,S<:Real}
     nodes = SparseGrid{D,SVector{D,S}}(lmax)
     weights = SparseGrid{D,S}(lmax)
 
-    for grid in cart(ntuple(d -> 1, D)):cart(ntuple(d -> lmax + D - 1, D))
+    @inbounds for grid in cart(ntuple(d -> 1, D)):cart(ntuple(d -> lmax + D - 1, D))
         level = sum(vect(grid))
         if level ≤ lmax + D - 1
             npoints = sparse_npoints1d.(vect(grid))
@@ -153,7 +153,7 @@ function quadsg(f, ::Type{T}, quad::SGQuadrature{D,S}) where {T,D,S<:Real}
     nevals = 0
 
     lmax = quad.lmax
-    for grid in cart(ntuple(d -> 1, D)):cart(ntuple(d -> lmax + D - 1, D))
+    @inbounds for grid in cart(ntuple(d -> 1, D)):cart(ntuple(d -> lmax + D - 1, D))
         level = sum(vect(grid))
         if level ≤ lmax + D - 1
             grid_nodes = quad.nodes.elts[grid]
