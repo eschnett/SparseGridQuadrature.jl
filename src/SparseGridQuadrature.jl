@@ -149,7 +149,7 @@ function quadsg(f, ::Type{T}, quad::SGQuadrature{D,S}) where {T,D,S<:Real}
     D::Int
     @assert D ≥ 1
 
-    result = zero(T)
+    result = one(S) * zero(T)
     nevals = 0
 
     lmax = quad.lmax
