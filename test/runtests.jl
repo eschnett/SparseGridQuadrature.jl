@@ -8,8 +8,7 @@ using Test
 ################################################################################
 
 const Dims = 1:4
-# const Types = [Float32, Float64, Double64, BigFloat]
-const Types = [Float64]
+const Types = [Float32, Float64, Double64, BigFloat]
 const lmax = 10
 
 ################################################################################
@@ -30,7 +29,7 @@ end
     xmin = ntuple(d -> -1, D)
     xmax = ntuple(d -> +1, D)
 
-    atol = 1 / 2^lmax
+    atol = max(1 / 2^lmax, 20 * sqrt(eps(T)))
 
     @test quadsg(f0, T, quad, xmin, xmax).result ≈ 2^D
     @test quadsg(f1, T, quad, xmin, xmax).result ≈ 2^D
