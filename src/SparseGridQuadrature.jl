@@ -3,22 +3,8 @@ module SparseGridQuadrature
 using Setfield
 using StaticArrays
 
-export SGQuadrature, quadsg
-
 cart(I) = CartesianIndex(Tuple(I))
 vect(I) = SVector(Tuple(I))
-
-################################################################################
-
-struct SparseGrid{D,S}
-    elts::Array{Array{S,D},D}
-    function SparseGrid{D,S}(lmax::Int) where {D,S}
-        D::Int
-        @assert D ≥ 1
-        @assert lmax ≥ 1
-        return new{D,S}(Array{Array{S,D}}(undef, ntuple(d -> lmax, D)...))
-    end
-end
 
 ################################################################################
 
@@ -80,10 +66,23 @@ sparse_node1d(::Type{S}, level::Int, i::Int) where {S<:Real} = node1d(S, level, 
 
 ################################################################################
 
-struct SGQuadrature{D,S}
+struct SparseGrid{D,S}
+    elts::Array{Array{S,D},D}
+    function SparseGrid{D,S}(lmax::Int) where {D,S}
+        D::Int
+        @assert D ≥ 1
+        @assert lmax ≥ 1
+        return new{D,S}(Array{Array{S,D}}(undef, ntuple(d -> lmax, D)...))
+    end
+end
+
+export SGQuadrature
+
+mutable struct SGQuadrature{D,S}
     lmax::Int
     nodes::SparseGrid{D,SVector{D,S}}
     weights::SparseGrid{D,S}
+    exclude_boundaries::Bool
 end
 
 function SGQuadrature{D,S}(lmax::Int) where {D,S<:Real}
@@ -94,7 +93,7 @@ function SGQuadrature{D,S}(lmax::Int) where {D,S<:Real}
     nodes = SparseGrid{D,SVector{D,S}}(lmax)
     weights = SparseGrid{D,S}(lmax)
 
-    @inbounds for grid in cart(ntuple(d -> 1, D)):cart(ntuple(d -> lmax + D - 1, D))
+    @inbounds for grid in cart(ntuple(d -> 1, D)):cart(ntuple(d -> lmax, D))
         level = sum(vect(grid))
         if level ≤ lmax + D - 1
             npoints = sparse_npoints1d.(vect(grid))
@@ -108,7 +107,12 @@ function SGQuadrature{D,S}(lmax::Int) where {D,S<:Real}
                 node = sparse_node1d.(S, vect(grid), vect(i))
                 weight = zero(S)
                 grid′min = cart(vect(grid) .+ 1)
-                grid′max = cart(ntuple(d -> lmax + 2D - 1, D))
+                # grid′max = cart(ntuple(d -> lmax + 2D - 1, D))
+                grid′max = cart(SVector{D}(begin
+                                               sum_others = sum(grid′min[d′] for d′ in 1:D if d′ ≠ d; init=0)
+                                               lmax + 2D - 1 - sum_others
+                                           end
+                                           for d in 1:D))
                 for grid′ in grid′min:grid′max
                     level′ = sum(vect(grid′))
                     if level′ ≤ lmax + 2D - 1
@@ -140,20 +144,22 @@ function SGQuadrature{D,S}(lmax::Int) where {D,S<:Real}
         end
     end
 
-    return SGQuadrature{D,S}(lmax, nodes, weights)
+    return SGQuadrature{D,S}(lmax, nodes, weights, false)
 end
 
 ################################################################################
 
-function quadsg(f, ::Type{T}, quad::SGQuadrature{D,S}) where {T,D,S<:Real}
-    D::Int
-    @assert D ≥ 1
+export quadsg
 
+function quadsg(f, ::Type{T}, quad::SGQuadrature{D,S}) where {T,D,S<:Real}
     result = one(S) * zero(T)
     nevals = 0
 
     lmax = quad.lmax
-    @inbounds for grid in cart(ntuple(d -> 1, D)):cart(ntuple(d -> lmax + D - 1, D))
+    exclude_boundaries = quad.exclude_boundaries[]
+    gridmin = SVector{D}(exclude_boundaries ? 2 : 1 for d in 1:D)
+    gridmax = SVector{D}(exclude_boundaries ? lmax - D + 1 : lmax for d in 1:D)
+    @inbounds for grid in cart(gridmin):cart(gridmax)
         level = sum(vect(grid))
         if level ≤ lmax + D - 1
             grid_nodes = quad.nodes.elts[grid]
@@ -166,16 +172,126 @@ function quadsg(f, ::Type{T}, quad::SGQuadrature{D,S}) where {T,D,S<:Real}
     return (result=result, nevals=nevals)
 end
 
-function quadsg(f, ::Type{T}, quad::SGQuadrature{D,S}, xmin::SVector{D,S}, xmax::SVector{D,S}) where {T,D,S<:Real}
+################################################################################
+
+export transform_domain_size!
+
+function transform_domain_size!(quad::SGQuadrature{D,S}, xmin::SVector{D,S}, xmax::SVector{D,S}) where {D,S<:Real}
+    lmax = quad.lmax
+
     x₀ = (xmin + xmax) / 2
     Δx = (xmax - xmin) / 2
-    g(x) = prod(Δx) * f(x₀ + Δx .* x)
-    return quadsg(g, T, quad)
+
+    @inbounds for grid in cart(ntuple(d -> 1, D)):cart(ntuple(d -> lmax, D))
+        level = sum(vect(grid))
+        if level ≤ lmax + D - 1
+            grid_nodes = quad.nodes.elts[grid]
+            grid_weights = quad.weights.elts[grid]
+            for i in eachindex(grid_weights)
+                grid_nodes[i] = x₀ + Δx .* grid_nodes[i]
+                grid_weights[i] *= prod(Δx)
+            end
+        end
+    end
+
+    return quad
 end
 
-function quadsg(f, ::Type{T}, quad::SGQuadrature{D,S}, xmin::Union{Tuple,SVector{D}},
-                xmax::Union{Tuple,SVector{D}}) where {T,D,S<:Real}
-    return quadsg(f, T, quad, SVector{D,S}(xmin), SVector{D,S}(xmax))
+function transform_domain_size!(quad::SGQuadrature{D,S}, xmin::Union{Tuple,SVector{D}},
+                                xmax::Union{Tuple,SVector{D}}) where {T,D,S<:Real}
+    return transform_domain_size!(quad, SVector{D,S}(xmin), SVector{D,S}(xmax))
+end
+
+################################################################################
+
+# [Chebyshev-Gauss quadrature](https://en.wikipedia.org/wiki/Chebyshev–Gauss_quadrature)
+
+@inline cg_node(t::S) where {S<:Real} = sinpi(t / 2)
+@inline cg_weight(t::S) where {S<:Real} = S(π) / 2 * cospi(t / 2)
+
+# f(x(t))
+# df/dt = df/dx dx/dt
+# ddf/dtdt = ddf/dxdx dx/dt dx/dt + df/dx ddx/dtdt
+
+export transform_chebyshev_gauss!
+
+function transform_chebyshev_gauss!(quad::SGQuadrature{D,S}) where {D,S<:Real}
+    lmax = quad.lmax
+
+    @inbounds for grid in cart(ntuple(d -> 1, D)):cart(ntuple(d -> lmax, D))
+        level = sum(vect(grid))
+        if level ≤ lmax + D - 1
+            grid_nodes = quad.nodes.elts[grid]
+            grid_weights = quad.weights.elts[grid]
+            for i in eachindex(grid_weights)
+                t = grid_nodes[i]
+                grid_nodes[i] = cg_node.(t)
+                grid_weights[i] *= prod(cg_weight.(t))
+            end
+        end
+    end
+    quad.exclude_boundaries = true
+
+    return quad
+end
+
+################################################################################
+
+# [tanh-sinh quadrature](https://en.wikipedia.org/wiki/Tanh-sinh_quadrature)
+
+@inline ts_node(t::S) where {S<:Real} = tanh(S(π) / 2 * sinh(t))
+@inline ts_weight(t::S) where {S<:Real} = S(π) / 2 * cosh(t) / cosh(S(π) / 2 * sinh(t))^2
+
+# Find a reasonable domain size
+@generated function find_tmax(::Type{S}) where {S<:Real}
+    tmin = S(0)
+    t = tmin
+    while true
+        t += 1
+        x = ts_node(t)
+        w = ts_weight(t)
+        (x == 1 || w == 0) && break
+        # (x == 1 || w < eps(S)) && break
+    end
+    tmax = t
+    for iter in 1:10
+        t = (tmin + tmax) / 2
+        x = ts_node(t)
+        w = ts_weight(t)
+        if x == 1 || w == 0
+            # if x == 1 || w < eps(S)
+            tmax = t
+        else
+            tmin = t
+        end
+    end
+    return tmin
+end
+
+export transform_tanh_sinh!
+
+function transform_tanh_sinh!(quad::SGQuadrature{D,S}) where {D,S<:Real}
+    lmax = quad.lmax
+
+    tmax = find_tmax(S)
+    xmax = vect(ntuple(d -> tmax, D))
+    transform_domain_size!(quad, -xmax, xmax)
+
+    @inbounds for grid in cart(ntuple(d -> 1, D)):cart(ntuple(d -> lmax, D))
+        level = sum(vect(grid))
+        if level ≤ lmax + D - 1
+            grid_nodes = quad.nodes.elts[grid]
+            grid_weights = quad.weights.elts[grid]
+            for i in eachindex(grid_weights)
+                t = grid_nodes[i]
+                grid_nodes[i] = ts_node.(t)
+                grid_weights[i] *= prod(ts_weight.(t))
+            end
+        end
+    end
+    quad.exclude_boundaries = true
+
+    return quad
 end
 
 end
