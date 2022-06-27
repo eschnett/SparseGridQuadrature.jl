@@ -149,6 +149,13 @@ end
 
 ################################################################################
 
+# Ignore nans and infinities. If the integrand has a singularity on
+# the boundary, our quadrature nodes might get too close to the
+# singularity. In this case, we assume that the caller chose a proper
+# integral transformation that sets the quadrature weights at the
+# singularity to zero, and ignoring this value is valid.
+iffinite(x) = ifelse(isfinite(x), x, zero(x))
+
 export quadsg
 
 function quadsg(f, ::Type{T}, quad::SGQuadrature{D,S}) where {T,D,S<:Real}
@@ -164,7 +171,7 @@ function quadsg(f, ::Type{T}, quad::SGQuadrature{D,S}) where {T,D,S<:Real}
         if level ≤ lmax + D - 1
             grid_nodes = quad.nodes.elts[grid]
             grid_weights = quad.weights.elts[grid]
-            result += sum(grid_weights[i] * T(f(grid_nodes[i])) for i in eachindex(grid_weights))
+            result += sum(grid_weights[i] * iffinite.(T(f(grid_nodes[i]))) for i in eachindex(grid_weights))
             nevals += length(grid_weights)
         end
     end
