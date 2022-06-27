@@ -242,6 +242,32 @@ function transform_chebyshev_gauss!(quad::SGQuadrature{D,S}) where {D,S<:Real}
     return quad
 end
 
+# One-sided Chebyshev-Gauss transform (at lower boundary)
+
+@inline cglb_node(t::S) where {S<:Real} = 1 + 2 * sinpi((t - 1) / 4)
+@inline cglb_weight(t::S) where {S<:Real} = S(π) / 2 * cospi((t - 1) / 4)
+
+export transform_chebyshev_gauss_lb!
+
+function transform_chebyshev_gauss_lb!(quad::SGQuadrature{D,S}) where {D,S<:Real}
+    lmax = quad.lmax
+
+    @inbounds for grid in cart(ntuple(d -> 1, D)):cart(ntuple(d -> lmax, D))
+        level = sum(vect(grid))
+        if level ≤ lmax + D - 1
+            grid_nodes = quad.nodes.elts[grid]
+            grid_weights = quad.weights.elts[grid]
+            for i in eachindex(grid_weights)
+                t = grid_nodes[i]
+                grid_nodes[i] = cglb_node.(t)
+                grid_weights[i] *= prod(cglb_weight.(t))
+            end
+        end
+    end
+
+    return quad
+end
+
 ################################################################################
 
 # [tanh-sinh quadrature](https://en.wikipedia.org/wiki/Tanh-sinh_quadrature)
