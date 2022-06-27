@@ -259,6 +259,40 @@ end
     @test isapprox(F1 + F2, F; rtol=rtol)
 end
 
+@testset "Chebyshev-Gauss: Integrals of singular functions T=$T D=$D" for T in Types, D in Dims(T)
+    # These test cases are too slow
+    T ≡ Double64 && D == 4 && continue
+
+    quad = quads[(D, T)]::SGQuadrature{D,T}
+    # Use a double Chebyshev-Gauss transform
+    cg2quad = transform_chebyshev_gauss!(deepcopy(quad))
+    cg2quad = transform_chebyshev_gauss!(cg2quad)
+
+    n = 2^(lmax(D) - 1) + 1
+    rtol = max(log2(n)^(D - 1) / n^2, sqrt(eps(T)))
+
+    f(x) = 1 / sqrt(prod(1 .- x .^ 2))
+    F = quadsg(f, T, cg2quad).result
+    @test isapprox(F, T(π)^D; rtol=10 * rtol)
+
+    # D=1 is not integrable
+    if D ≥ 2
+        # Use a double Chebyshev-Gauss transform
+        cg2quad = deepcopy(quad)
+        cg2quad = transform_chebyshev_gauss!(cg2quad)
+        cg2quad = transform_chebyshev_gauss_lb!(cg2quad)
+        cg2quad = transform_domain_size!(cg2quad, SVector{D}(0 for d in 1:D), SVector{D}(1 for d in 1:D))
+
+        g(x) = 1 / sqrt(sum(x .^ 2))
+        G₀ = T[Inf,
+               log(17 + 12 * sqrt(T(2))) / 2,
+               -T(π) / 4 - 3 * log(T(2)) / 2 + 3 * log(1 + sqrt(T(3))),
+               0.967411988854587774082618732438][D]
+        G = quadsg(g, T, cg2quad).result
+        @test isapprox(G, G₀; rtol=10 * rtol)
+    end
+end
+
 ################################################################################
 
 @testset "tanh-sinh: Basic integration T=$T D=$D" for T in Types, D in Dims(T)
@@ -404,18 +438,21 @@ end
     F = quadsg(f, T, thquad).result
     @test isapprox(F, T(π)^D; rtol=10 * rtol)
 
-    # if T ≢ Float32 && D ≥ 2
-    #     # D=1 is not integrable.
-    #     # Float32 does not have enough accuracy for this singularity.
-    #     thquad = transform_domain_size!(deepcopy(quad), SVector{D}(0 for d in 1:D), SVector{D}(1 for d in 1:D))
-    #     thquad = transform_tanh_sinh!(thquad)
-    # 
-    #     g(x) = 1 / sqrt(sum(x .^ 2))
-    #     G₀ = T[Inf,
-    #            log(17 + 12 * sqrt(T(2))) / 2,
-    #            -T(π) / 4 - 3 * log(T(2)) / 2 + 3 * log(1 + sqrt(T(3))),
-    #            0.967411988854587774082618732438][D]
-    #     G = quadsg(g, T, thquad).result
-    #     @test isapprox(G, G₀; rtol=rtol)
-    # end
+    # D=1 is not integrable.
+    # Float32 is too inaccurate.
+    if D ≥ 2 && T ≢ Float32
+        thquad = deepcopy(quad)
+        thquad = transform_tanh_sinh!(thquad)
+        thquad = transform_domain_size!(thquad, SVector{D}(0 for d in 1:D), SVector{D}(1 for d in 1:D))
+
+        g(x) = 1 / sqrt(sum(x .^ 2))
+        G₀ = T[Inf,
+               log(17 + 12 * sqrt(T(2))) / 2,
+               -T(π) / 4 - 3 * log(T(2)) / 2 + 3 * log(1 + sqrt(T(3))),
+               0.967411988854587774082618732438][D]
+        G = quadsg(g, T, thquad).result
+        # Yes, BigFloat is here less accurate than the other types.
+        rtol′ = (T ≡ BigFloat ? 200 : 25) * rtol
+        @test isapprox(G, G₀; rtol=rtol′)
+    end
 end
