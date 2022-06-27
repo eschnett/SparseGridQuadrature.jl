@@ -86,24 +86,29 @@ julia> lmax = 14
 
 julia> quad = SGQuadrature{4,Float64}(lmax);
 
-julia> transform_domain_size!(quad, (0,0,0,0), (1,1,1,1));
-
 julia> transform_chebyshev_gauss!(quad);
+
+julia> transform_domain_size!(quad, (0,0,0,0), (1,1,1,1));
 
 julia> f(x) = 3 * sum(x.^2)
 f (generic function with 1 method)
 
 julia> quadsg(f, Float64, quad)
-(result = 3.9386494466298867, nevals = 178177)
+(result = 3.9995680385705787, nevals = 178177)
 ```
 
-Unfortunately this is not usually more accurate than the trapezoidal
-rule. I assume the reason is that a sparse grid quadrature already
-emphasizes the boundary points, which already captures much of the
-advantage of the Chebyshev-Gauss rules which also clusters points near
-the boundary. Also, switching to a Chebyshev-Gauss rule then spreads
-out the points in the interior requiring more points overall (a larger
-`lmax`).
+Unfortunately, this is less accurate than the simple trapezoidal rule,
+although more evaluation points are used. I assume the reason is that
+a sparse grid quadrature already emphasizes the boundary points, which
+already captures much of the advantage of the Chebyshev-Gauss rules
+which also clusters points near the boundary. Also, switching to a
+Chebyshev-Gauss rule then spreads out the points in the interior
+requiring more points overall (a larger `lmax`).
+
+Note the order in which the two transformations (the Chebyshev-Gauss
+transformation and the change of integration domain) are applied. The
+domain size transformation appears last, which means it will be the
+first transformation that is visible to the integration kernel.
 
 ## Tanh-sinh quadrature
 
@@ -132,6 +137,10 @@ julia> quadsg(f, Float64, quad)
 The expected result is `π^4 = 97.40909103400243`, the quadrature error
 is `3⋅10^-8`.
 
+## Other examples
+
+The test cases contains additional examples, including more examples
+of integrating singular functions.
 
 ## References
 
