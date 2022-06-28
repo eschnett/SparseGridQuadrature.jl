@@ -179,6 +179,36 @@ function quadsg(f, ::Type{T}, quad::SGQuadrature{D,S}) where {T,D,S<:Real}
     return (result=result, nevals=nevals)
 end
 
+function quadsg(f, ::Type{T}, quad::SGQuadrature{D,S}, xmin::SVector{D,S}, xmax::SVector{D,S}) where {T,D,S<:Real}
+    result = one(S) * zero(T)
+    nevals = 0
+
+    x₀ = (xmin + xmax) / 2
+    Δx = (xmax - xmin) / 2
+
+    lmax = quad.lmax
+    exclude_boundaries = quad.exclude_boundaries[]
+    gridmin = SVector{D}(exclude_boundaries ? 2 : 1 for d in 1:D)
+    gridmax = SVector{D}(exclude_boundaries ? lmax - D + 1 : lmax for d in 1:D)
+    @inbounds for grid in cart(gridmin):cart(gridmax)
+        level = sum(vect(grid))
+        if level ≤ lmax + D - 1
+            grid_nodes = quad.nodes.elts[grid]
+            grid_weights = quad.weights.elts[grid]
+            result += sum(grid_weights[i] * iffinite.(T(f(x₀ + Δx .* grid_nodes[i]))) for i in eachindex(grid_weights))
+            nevals += length(grid_weights)
+        end
+    end
+    result *= prod(Δx)
+
+    return (result=result, nevals=nevals)
+end
+
+function quadsg(f, ::Type{T}, quad::SGQuadrature{D,S}, xmin::Union{Tuple,SVector{D}},
+                xmax::Union{Tuple,SVector{D}}) where {T,D,S<:Real}
+    return quadsg(f, T, quad, SVector{D,S}(xmin), SVector{D,S}(xmax))
+end
+
 ################################################################################
 
 export transform_domain_size!

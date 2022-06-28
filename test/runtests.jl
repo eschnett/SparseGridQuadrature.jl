@@ -66,6 +66,11 @@ end
     @test isapprox(quadsg(f0, T, quad′).result, prod(xmax - xmin); rtol=10 * rtol)
     @test isapprox(quadsg(f1, T, quad′).result, prod(xmax - xmin) * (1 + sum(xmax + xmin) / 2); rtol=rtol)
     @test isapprox(quadsg(f2, T, quad′).result, prod(xmax - xmin) * sum(xmin .^ 2 + xmin .* xmax + xmax .^ 2); rtol=10 * rtol)
+
+    @test isapprox(quadsg(f0, T, quad, xmin, xmax).result, prod(xmax - xmin); rtol=10 * rtol)
+    @test isapprox(quadsg(f1, T, quad, xmin, xmax).result, prod(xmax - xmin) * (1 + sum(xmax + xmin) / 2); rtol=rtol)
+    @test isapprox(quadsg(f2, T, quad, xmin, xmax).result, prod(xmax - xmin) * sum(xmin .^ 2 + xmin .* xmax + xmax .^ 2);
+                   rtol=10 * rtol)
 end
 
 @testset "Vector integrands T=$T D=$D" for T in Types, D in Dims(T)
@@ -174,11 +179,16 @@ end
 
     xmin = SVector{D}(-1 + T(rand(-5:5)) / 10 for d in 1:D)
     xmax = SVector{D}(+1 + T(rand(-5:5)) / 10 for d in 1:D)
-    cgquad = transform_domain_size!(deepcopy(cgquad), xmin, xmax)
+    cgquad′ = transform_domain_size!(deepcopy(cgquad), xmin, xmax)
 
-    @test isapprox(quadsg(f0, T, cgquad).result, prod(xmax - xmin); rtol=10 * rtol)
-    @test isapprox(quadsg(f1, T, cgquad).result, prod(xmax - xmin) * (1 + sum(xmax + xmin) / 2); rtol=10 * rtol)
-    @test isapprox(quadsg(f2, T, cgquad).result, prod(xmax - xmin) * sum(xmin .^ 2 + xmin .* xmax + xmax .^ 2);
+    @test isapprox(quadsg(f0, T, cgquad′).result, prod(xmax - xmin); rtol=10 * rtol)
+    @test isapprox(quadsg(f1, T, cgquad′).result, prod(xmax - xmin) * (1 + sum(xmax + xmin) / 2); rtol=10 * rtol)
+    @test isapprox(quadsg(f2, T, cgquad′).result, prod(xmax - xmin) * sum(xmin .^ 2 + xmin .* xmax + xmax .^ 2);
+                   rtol=10 * rtol)
+
+    @test isapprox(quadsg(f0, T, cgquad, xmin, xmax).result, prod(xmax - xmin); rtol=10 * rtol)
+    @test isapprox(quadsg(f1, T, cgquad, xmin, xmax).result, prod(xmax - xmin) * (1 + sum(xmax + xmin) / 2); rtol=10 * rtol)
+    @test isapprox(quadsg(f2, T, cgquad, xmin, xmax).result, prod(xmax - xmin) * sum(xmin .^ 2 + xmin .* xmax + xmax .^ 2);
                    rtol=10 * rtol)
 end
 
@@ -339,11 +349,16 @@ end
 
     xmin = SVector{D}(-1 + T(rand(-5:5)) / 10 for d in 1:D)
     xmax = SVector{D}(+1 + T(rand(-5:5)) / 10 for d in 1:D)
-    thquad = transform_domain_size!(deepcopy(thquad), xmin, xmax)
+    thquad′ = transform_domain_size!(deepcopy(thquad), xmin, xmax)
 
-    @test isapprox(quadsg(f0, T, thquad).result, prod(xmax - xmin); rtol=rtol)
-    @test isapprox(quadsg(f1, T, thquad).result, prod(xmax - xmin) * (1 + sum(xmax + xmin) / 2); rtol=rtol)
-    @test isapprox(quadsg(f2, T, thquad).result, prod(xmax - xmin) * sum(xmin .^ 2 + xmin .* xmax + xmax .^ 2);
+    @test isapprox(quadsg(f0, T, thquad′).result, prod(xmax - xmin); rtol=rtol)
+    @test isapprox(quadsg(f1, T, thquad′).result, prod(xmax - xmin) * (1 + sum(xmax + xmin) / 2); rtol=rtol)
+    @test isapprox(quadsg(f2, T, thquad′).result, prod(xmax - xmin) * sum(xmin .^ 2 + xmin .* xmax + xmax .^ 2);
+                   rtol=10 * rtol)
+
+    @test isapprox(quadsg(f0, T, thquad, xmin, xmax).result, prod(xmax - xmin); rtol=rtol)
+    @test isapprox(quadsg(f1, T, thquad, xmin, xmax).result, prod(xmax - xmin) * (1 + sum(xmax + xmin) / 2); rtol=rtol)
+    @test isapprox(quadsg(f2, T, thquad, xmin, xmax).result, prod(xmax - xmin) * sum(xmin .^ 2 + xmin .* xmax + xmax .^ 2);
                    rtol=10 * rtol)
 end
 

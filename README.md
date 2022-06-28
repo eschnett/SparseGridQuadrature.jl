@@ -63,6 +63,25 @@ julia> lmax = 10
 
 julia> quad = SGQuadrature{4,Float64}(lmax);
 
+julia> transform_domain_size!(quad);
+
+julia> f(x) = 3 * sum(x.^2)
+f (generic function with 1 method)
+
+julia> quadsg(f, Float64, quad, (0,0,0,0), (1,1,1,1))
+(result = 4.000007629394531, nevals = 84481)
+```
+
+You can instead also update the quadrature method `quad`:
+
+```Julia
+julia> using SparseGridQuadrature
+
+julia> lmax = 10
+10
+
+julia> quad = SGQuadrature{4,Float64}(lmax);
+
 julia> transform_domain_size!(quad, (0,0,0,0), (1,1,1,1));
 
 julia> f(x) = 3 * sum(x.^2)

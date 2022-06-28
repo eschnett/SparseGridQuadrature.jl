@@ -1,7 +1,7 @@
 name = "SparseGridQuadrature"
 uuid = "783fc400-e4cb-4fe0-842f-3d091e33b2c9"
 authors = ["Erik Schnetter <schnetter@gmail.com>"]
-version = "2.0.0"
+version = "2.1.0"
 
 [deps]
 Setfield = "efcf1570-3423-57d1-acb7-fd33fddbac46"
